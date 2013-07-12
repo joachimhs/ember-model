@@ -88,6 +88,10 @@ Ember.Model = Ember.Object.extend(Ember.Evented, {
 
   dataKey: function(key) {
     var camelizeKeys = get(this.constructor, 'camelizeKeys');
+    var meta = this.constructor.metaForProperty(key);
+    if (meta.options && meta.options.key) {
+      return camelizeKeys ? underscore(meta.options.key) : meta.options.key;
+    }
     return camelizeKeys ? underscore(key) : key;
   },
 
@@ -160,7 +164,7 @@ Ember.Model = Ember.Object.extend(Ember.Evented, {
   toJSON: function() {
     var key, meta,
         json = {},
-        properties = this.getProperties(this.attributes);
+        properties = this.attributes ? this.getProperties(this.attributes) : {};
 
     for (key in properties) {
       meta = this.constructor.metaForProperty(key);
@@ -174,10 +178,12 @@ Ember.Model = Ember.Object.extend(Ember.Evented, {
     }
 
     if (this.relationships) {
-      var data;
+      var data, relationshipKey;
+
       for(var i = 0; i < this.relationships.length; i++) {
         key = this.relationships[i];
         meta = this.constructor.metaForProperty(key);
+        relationshipKey = meta.options.key || key;
 
         if (meta.kind === 'belongsTo') {
           data = this.serializeBelongsTo(key, meta);
@@ -186,7 +192,7 @@ Ember.Model = Ember.Object.extend(Ember.Evented, {
         }
 
         if (data) {
-          json[this.dataKey(key)] = data;
+          json[relationshipKey] = data;
         }
       }
     }
@@ -402,7 +408,7 @@ Ember.Model.reopenClass({
   _fetchById: function(record, id) {
     var adapter = get(this, 'adapter');
 
-    if (adapter.findMany) {
+    if (adapter.findMany && !adapter.findMany.isUnimplemented) {
       if (this._currentBatchIds) {
         if (!contains(this._currentBatchIds, id)) { this._currentBatchIds.push(id); }
       } else {
